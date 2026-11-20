@@ -1,0 +1,17 @@
+# Build output and environments
+.venv/
+.venv-mac/
+build/
+dist/
+build_log.txt
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Reports, logs and debug files the app writes when run from this folder
+output/
+ChangiReports/
+
+# Mac / Windows clutter
+.DS_Store
+Thumbs.db

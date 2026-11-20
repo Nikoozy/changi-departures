@@ -1,0 +1,35 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Changi Departures app",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/app.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Command line: pick terminal + date (visible browser)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/changi_scraper.py",
+      "args": ["--terminal", "${input:terminal}", "--date", "${input:reportDate}", "--visible"],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Inspect live DOM (visible)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/changi_scraper.py",
+      "args": ["--inspect", "--visible", "--log-level", "DEBUG"],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}"
+    }
+  ],
+  "inputs": [
+    { "id": "reportDate", "type": "promptString", "description": "Report date (YYYY-MM-DD)" },
+    { "id": "terminal", "type": "pickString", "description": "Terminal", "options": ["1", "2", "3", "4"], "default": "1" }
+  ]
+}

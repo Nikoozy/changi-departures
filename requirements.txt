@@ -1,0 +1,7 @@
+selenium>=4.20        # includes Selenium Manager: finds/downloads the matching chromedriver
+airportsdata>=20240101 # IATA airport -> country reference dataset (offline, ~8k airports)
+tzdata>=2024.1         # timezone database for zoneinfo on Windows (Asia/Singapore)
+pytest>=8.0            # tests
+python-docx>=1.1       # Word report (changi_t1_report_YYYY-MM-DD.docx)
+reportlab>=4.0         # PDF report  (changi_t1_report_YYYY-MM-DD.pdf)
+rumps>=0.4; sys_platform == "darwin"   # macOS menu-bar icon for the app (Mac only)

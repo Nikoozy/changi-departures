@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Departures (MOCK — for browser integration tests only)</title>
+<!--
+  A deliberately awkward stand-in for the Changi departures page, used to test the
+  scraper's browser logic offline. It is NOT a copy of the real site's DOM.
+  Hostile features on purpose:
+    * date picker is a custom element with an OPEN SHADOW ROOT;
+    * trigger is a <div tabindex>, day cells are <div><span>, arrows are bare SVGs
+      with no aria-labels (position heuristics must work);
+    * prev/next-month overflow days are shown (duplicate day numbers);
+    * every flight row is an <a href> to a flight-details page, and there is a
+      decoy link containing a date — clicking either is the old failure mode;
+    * "TR416Scoot" (no separator) and "SQ 106 · Singapore Airlines" formats;
+    * the list reloads asynchronously after a date change and after
+      "show earlier/later flights", which are role=button divs.
+  Selectable dates: 1 Sep 2026 – 31 Jan 2027. Start date: ?start=YYYY-MM-DD.
+-->
+<style>
+  body { font-family: Arial, sans-serif; margin: 20px; }
+  .toolbar { display: flex; gap: 24px; align-items: center; margin: 12px 0; }
+  .promo { display: block; margin: 8px 0; color: #a00; }
+  .row { display: grid; grid-template-columns: 90px 300px 260px 50px 160px; padding: 6px;
+         border-bottom: 1px solid #ddd; color: #000; text-decoration: none; }
+  .more { text-transform: uppercase; color: #06c; cursor: pointer; padding: 10px 0; width: 240px; }
+</style>
+</head>
+<body>
+<h1>Departures</h1>
+<a class="promo" href="flight-details.html?f=SQ1">Track SQ1 · Sat, 10 Oct 2026</a>
+<div class="toolbar"><span>Departures</span><cag-datepicker id="dp"></cag-datepicker></div>
+<div id="earlier"></div>
+<div id="list"></div>
+<div id="later"></div>
+
+<script id="data" type="application/json">
+[
+ {"time":"00:00","flights":["TR500"],"airline":"Scoot","city":"Perth","code":"PER"},
+ {"time":"00:30","flights":["SQ7"],"airline":"Singapore Airlines","city":"Seoul","code":"ICN"},
+ {"time":"01:59","flights":["TR600"],"airline":"Scoot","city":"Darwin","code":"DRW"},
+ {"time":"02:00","flights":["TR700"],"airline":"Scoot","city":"Brisbane","code":"BNE"},
+ {"time":"05:30","flights":["TR100"],"airline":"Scoot","city":"Penang","code":"PEN"},
+ {"time":"06:00","flights":["TR416"],"airline":"Scoot","city":"Kota Kinabalu","code":"BKI","inline":true},
+ {"time":"06:45","flights":["SQ 978"],"airline":"Singapore Airlines","city":"Bangkok","code":"BKK"},
+ {"time":"07:59","flights":["3K 685"],"airline":"Jetstar Asia","city":"Jakarta","code":"CGK"},
+ {"time":"08:00","flights":["TR288"],"airline":"Scoot","city":"Phuket","code":"HKT","inline":true},
+ {"time":"09:30","flights":["SQ 106"],"airline":"Singapore Airlines","city":"Tokyo","code":"NRT","gate":"C20"},
+ {"time":"09:30","flights":["NH 6254"],"airline":"ANA","city":"Tokyo","code":"NRT","gate":"C20"},
+ {"time":"11:15","flights":["MH 604"],"airline":"Malaysia Airlines","city":"Kuala Lumpur","code":"KUL","status":"Cancelled"},
+ {"time":"12:00","flights":["TR9DD"],"airline":"Scoot","city":"Manila","code":"MNL","inline":true},
+ {"time":"13:40","flights":["SQ 222"],"airline":"Singapore Airlines","city":"Sydney","code":"SYD","status":"Retimed","est":"14:30"},
+ {"time":"15:05","flights":["EK 405"],"airline":"Emirates","city":"Dubai","code":"DXB"},
+ {"time":"17:15","flights":["TR 2"],"airline":"Scoot","city":"Atlantis","code":"QQQ"},
+ {"time":"19:20","flights":["QF 82"],"airline":"Qantas","city":"Sydney","code":"SYD"},
+ {"time":"21:00","flights":["CX 690"],"airline":"Cathay Pacific","city":"Hong Kong","code":"HKG"},
+ {"time":"22:10","flights":["TR 12"],"airline":"Scoot","city":"Taipei","code":"TPE"},
+ {"time":"23:59","flights":["SQ 31"],"airline":"Singapore Airlines","city":"San Francisco","code":"SFO"}
+]
+</script>
+
+<script>
+const DATA = JSON.parse(document.getElementById('data').textContent);
+const MON = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+const MONs = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const DAYN = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const MIN = new Date(2026, 8, 1), MAX = new Date(2027, 0, 31);
+const pad = n => String(n).padStart(2, '0');
+const iso = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parseISO = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const fmt = d => DAYN[d.getDay()] + ', ' + d.getDate() + ' ' + MONs[d.getMonth()] + ' ' + d.getFullYear();
+const same = (a, b) => iso(a) === iso(b);
+const params = new URLSearchParams(location.search);
+// Terminal shown on each row: ?terminal=N, or ?showterm=N to simulate the site ignoring the setting
+const TERM = params.get('showterm') || params.get('terminal') || '1';
+let cur = params.get('start') ? parseISO(params.get('start')) : new Date();
+cur.setHours(0, 0, 0, 0);
+let lo = 8 * 60, hi = 14 * 60;
+
+class CagDatepicker extends HTMLElement {
+  constructor() {
+    super();
+    this.root = this.attachShadow({ mode: 'open' });
+    this.root.innerHTML = `
+      <style>
+        :host { position: relative; display: inline-block; }
+        .toggle { border: 1px solid #888; padding: 8px 12px; cursor: pointer; display: inline-flex; gap: 8px; align-items: center; }
+        .pop { position: absolute; top: 44px; left: 0; z-index: 10; background: #fff; border: 1px solid #444; padding: 10px; width: 280px; }
+        .pop[hidden] { display: none; }
+        .hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .nav { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; }
+        .d { padding: 6px 0; cursor: pointer; }
+        .muted { color: #bbb; } .disabled { color: #eee; cursor: default; } .sel { background: #333; color: #fff; }
+      </style>
+      <div class="toggle" tabindex="0"><span class="lbl"></span>
+        <svg width="12" height="12" viewBox="0 0 12 12"><path d="M0 2 L12 2 L6 10 Z"/></svg></div>
+      <div class="pop" hidden></div>`;
+    this.root.querySelector('.lbl').textContent = fmt(cur);
+    this.root.querySelector('.toggle').addEventListener('click', () => this.toggle());
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') this.root.querySelector('.pop').hidden = true; });
+  }
+  toggle() {
+    const p = this.root.querySelector('.pop');
+    if (p.hidden) { this.view = new Date(cur.getFullYear(), cur.getMonth(), 1); this.draw(); p.hidden = false; }
+    else p.hidden = true;
+  }
+  draw() {
+    const p = this.root.querySelector('.pop'), v = this.view;
+    const arrow = dir => `<svg width="14" height="14" viewBox="0 0 14 14"><path d="${dir === 'l' ? 'M10 1 L3 7 L10 13' : 'M4 1 L11 7 L4 13'}" stroke="#000" fill="none" stroke-width="2"/></svg>`;
+    let h = `<div class="hdr"><div class="nav l">${arrow('l')}</div><div class="title">${MON[v.getMonth()]} ${v.getFullYear()}</div><div class="nav r">${arrow('r')}</div></div><div class="grid">`;
+    ['S', 'M', 'T', 'W', 'T', 'F', 'S'].forEach(w => h += `<div>${w}</div>`);
+    const start = new Date(v); start.setDate(1 - v.getDay());
+    for (let i = 0; i < 42; i++) {
+      const d = new Date(start); d.setDate(start.getDate() + i);
+      const cls = ['d'];
+      if (d.getMonth() !== v.getMonth()) cls.push('muted');
+      if (d < MIN || d > MAX) cls.push('disabled');
+      if (same(d, cur)) cls.push('sel');
+      h += `<div class="${cls.join(' ')}" data-iso="${iso(d)}"><span>${d.getDate()}</span></div>`;
+    }
+    p.innerHTML = h + '</div>';
+    const prevM = new Date(v.getFullYear(), v.getMonth() - 1, 1), nextM = new Date(v.getFullYear(), v.getMonth() + 1, 1);
+    p.querySelector('.nav.l').addEventListener('click', () => {
+      if (prevM >= new Date(MIN.getFullYear(), MIN.getMonth(), 1)) { this.view = prevM; this.draw(); } });
+    p.querySelector('.nav.r').addEventListener('click', () => { if (nextM <= MAX) { this.view = nextM; this.draw(); } });
+    p.querySelectorAll('.d').forEach(el => {
+      if (el.classList.contains('disabled')) return;
+      el.addEventListener('click', () => {
+        cur = parseISO(el.dataset.iso);
+        p.hidden = true;
+        this.root.querySelector('.lbl').textContent = fmt(cur);
+        loadDay();
+      });
+    });
+  }
+}
+customElements.define('cag-datepicker', CagDatepicker);
+
+const tmin = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+
+function loadDay() {
+  document.getElementById('list').innerHTML = '<p>Loading…</p>';
+  document.getElementById('earlier').innerHTML = '';
+  document.getElementById('later').innerHTML = '';
+  lo = 8 * 60; hi = 14 * 60;
+  setTimeout(renderList, 700);
+}
+
+function renderList() {
+  const list = document.getElementById('list');
+  list.innerHTML = '';
+  DATA.filter(f => tmin(f.time) >= lo && tmin(f.time) < hi).forEach(f => {
+    const nums = f.flights.map(n => n.replace('DD', pad(cur.getDate())));
+    const a = document.createElement('a');
+    a.className = 'row';
+    a.href = 'flight-details.html?f=' + nums[0].replace(' ', '');
+    const flt = f.inline ? `<span>${nums[0]}</span><span>${f.airline}</span>` : `<span>${nums.join(', ')} · ${f.airline}</span>`;
+    a.innerHTML = `<div class="time">${f.time}${f.est ? '<br><small>Est ' + f.est + '</small>' : ''}</div>
+      <div class="flt">${flt}</div><div class="dest">${f.city} (${f.code})</div><div class="term">T${TERM}</div>
+      <div class="status">${f.status || 'Scheduled'}${f.gate ? '<br>Gate ' + f.gate : ''}</div>`;
+    list.appendChild(a);
+  });
+  const mk = (id, label, fn) => {
+    const host = document.getElementById(id); host.innerHTML = '';
+    if (!label) return;
+    const b = document.createElement('div');
+    b.className = 'more'; b.setAttribute('role', 'button'); b.textContent = label;
+    b.addEventListener('click', () => setTimeout(() => { fn(); renderList(); }, 400));
+    host.appendChild(b);
+  };
+  mk('earlier', lo > 0 ? 'Show earlier flights' : null, () => { lo = Math.max(0, lo - 180); });
+  mk('later', hi < 1440 ? 'Show later flights' : null, () => { hi = Math.min(1440, hi + 240); });
+}
+setTimeout(renderList, 900);
+</script>
+</body>
+</html>

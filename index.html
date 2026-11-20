@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Changi Departures</title>
+<style>
+  :root {
+    --bg: #f4f4f2;
+    --surface: #fcfcfb;
+    --surface-2: #f0efec;
+    --border: #dcdbd6;
+    --text: #0b0b0b;
+    --text-2: #52514e;
+    --text-3: #77766f;
+    --accent: #2a78d6;          /* bars + primary actions */
+    --accent-ink: #ffffff;
+    --accent-soft: #e6effa;
+    --china: #b4372f;           /* China chip outline (paired with a label, never colour alone) */
+    --china-soft: #fbecea;
+    --danger: #d03b3b;
+    --danger-soft: #fbeaea;
+    --warn-soft: #fff4dc;
+    --radius: 10px;
+    --shadow: 0 1px 2px rgba(0,0,0,.05), 0 2px 8px rgba(0,0,0,.04);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121211;
+      --surface: #1a1a19;
+      --surface-2: #232321;
+      --border: #383835;
+      --text: #f0efec;
+      --text-2: #c3c2b7;
+      --text-3: #9b9a90;
+      --accent: #3987e5;
+      --accent-ink: #ffffff;
+      --accent-soft: #1d2b3d;
+      --china: #e66767;
+      --china-soft: #3a2220;
+      --danger: #e66767;
+      --danger-soft: #3a2020;
+      --warn-soft: #3a3020;
+      --shadow: none;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.45 "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  header.top {
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  }
+  .brand h1 { margin: 0; font-size: 18px; font-weight: 650; letter-spacing: .1px; }
+  .brand p { margin: 2px 0 0; color: var(--text-2); font-size: 13px; }
+  .top-actions { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+  .closed { max-width: 560px; margin: 80px auto; text-align: center; padding: 0 16px; }
+  .closed h1 { font-size: 20px; margin: 0 0 8px; }
+  main { max-width: 1120px; margin: 0 auto; padding: 20px 24px 48px; display: grid; gap: 16px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px 20px; }
+  .card h2 { margin: 0 0 12px; font-size: 15px; font-weight: 650; }
+  .muted { color: var(--text-2); }
+  .small { font-size: 13px; }
+
+  /* controls */
+  .controls { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 20px 28px; }
+  .field label.lbl { display: block; font-size: 12px; font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface-2); }
+  .seg input { position: absolute; opacity: 0; pointer-events: none; }
+  .seg label { padding: 8px 16px; cursor: pointer; font-weight: 600; color: var(--text-2); border-right: 1px solid var(--border); user-select: none; min-width: 52px; text-align: center; }
+  .seg label:last-of-type { border-right: 0; }
+  .seg input:checked + label { background: var(--accent); color: var(--accent-ink); }
+  .seg input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: -3px; }
+  input[type=date] { font: inherit; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); }
+  .quick { display: inline-flex; gap: 6px; margin-left: 8px; }
+  button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); padding: 8px 14px; }
+  button:hover { background: var(--surface-2); }
+  button:disabled { opacity: .55; cursor: not-allowed; }
+  button.link { border: 0; background: none; color: var(--accent); padding: 4px 6px; }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 650; padding: 10px 20px; }
+  button.primary:hover { filter: brightness(1.07); background: var(--accent); }
+  .go { display: flex; flex-direction: column; gap: 6px; margin-left: auto; align-items: flex-end; }
+  .check { font-size: 13px; color: var(--text-2); display: flex; gap: 6px; align-items: center; }
+
+  /* progress / messages */
+  .progress { height: 8px; background: var(--surface-2); border-radius: 99px; overflow: hidden; margin: 10px 0 6px; }
+  .progress > div { height: 100%; width: 0; background: var(--accent); border-radius: 99px; transition: width .6s ease; }
+  .row-between { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  details summary { cursor: pointer; color: var(--text-2); font-size: 13px; margin-top: 8px; }
+  pre.log { max-height: 220px; overflow: auto; background: var(--surface-2); border-radius: 8px; padding: 10px; font-size: 12px; white-space: pre-wrap; margin: 8px 0 0; }
+  .error { border-color: var(--danger); background: var(--danger-soft); }
+  .error h2 { color: var(--text); }
+  .error p { white-space: pre-wrap; margin: 0; }
+  .note { background: var(--warn-soft); border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-top: 10px; }
+  .empty { text-align: center; padding: 34px 20px; color: var(--text-2); }
+
+  /* report */
+  .rep-head { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+  .rep-head h2 { font-size: 20px; margin: 0; }
+  .rep-head .sub { color: var(--text-2); font-size: 13px; margin-top: 2px; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .actions a, .actions button { text-decoration: none; font-size: 14px; border: 1px solid var(--border); border-radius: 8px; padding: 7px 12px; color: var(--text); background: var(--surface); }
+  .actions a:hover { background: var(--surface-2); }
+  .kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 16px 0 18px; }
+  .kpi { background: var(--surface-2); border-radius: 8px; padding: 12px 14px; }
+  .kpi .k { font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-2); font-weight: 600; }
+  .kpi .v { font-size: 30px; font-weight: 650; line-height: 1.15; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .kpi .v small { font-size: 14px; font-weight: 500; color: var(--text-2); }
+  .badge { display: inline-block; font-size: 12px; font-weight: 650; padding: 2px 8px; border-radius: 99px; background: var(--danger-soft); color: var(--text); border: 1px solid var(--danger); margin-left: 8px; vertical-align: middle; }
+
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-2); font-weight: 600; background: var(--surface-2); }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td.time { font-weight: 650; white-space: nowrap; }
+  td.time .day { display: block; font-weight: 400; font-size: 12px; color: var(--text-3); }
+  .barcell { display: flex; align-items: center; gap: 10px; min-width: 180px; }
+  .bar { height: 14px; background: var(--accent); border-radius: 0 4px 4px 0; min-width: 2px; }
+  .barval { font-variant-numeric: tabular-nums; font-weight: 650; min-width: 2.5ch; }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px 6px; }
+  .chip { display: inline-flex; gap: 4px; align-items: baseline; font-size: 13px; padding: 1px 7px; border-radius: 6px; background: var(--surface-2); border: 1px solid transparent; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .chip b { font-weight: 650; }
+  .chip.cn { background: var(--china-soft); border-color: var(--china); }
+  tr.total td { font-weight: 700; background: var(--surface-2); border-bottom: 0; }
+  tr.peak td.time::after { content: "busiest"; display: block; font-size: 11px; font-weight: 600; color: var(--accent); text-transform: uppercase; letter-spacing: .4px; }
+  .foot { margin-top: 12px; font-size: 12.5px; color: var(--text-2); }
+  .foot p { margin: 2px 0; }
+
+  /* history */
+  #history tbody tr { cursor: pointer; }
+  #history tbody tr:hover td { background: var(--surface-2); }
+  #history tr.active td { background: var(--accent-soft); }
+
+  .hidden { display: none !important; }
+  .table-wrap { overflow-x: auto; }
+
+  @media (max-width: 760px) {
+    header.top, main { padding-left: 16px; padding-right: 16px; }
+    .kpis { grid-template-columns: 1fr; }
+    .go { margin-left: 0; align-items: flex-start; }
+    .barcell { min-width: 120px; }
+  }
+  @media print {
+    body { background: #fff; color: #000; }
+    header.top, #controls, #progress, #errorCard, #historyCard, .actions, #cachedNote { display: none !important; }
+    main { padding: 0; max-width: none; }
+    .card { border: 0; box-shadow: none; padding: 0; }
+    .bar { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <h1>Changi Departures</h1>
+    <p>Departing flights by destination country, in 2-hour blocks · 06:00 to 02:00 the next day</p>
+  </div>
+  <div class="top-actions">
+    <button class="link" id="openFolder" title="Open the folder where reports are saved">Open reports folder</button>
+    <button class="link" id="quitApp" title="Stop the Changi Departures app on this computer">Quit app</button>
+  </div>
+</header>
+
+<main>
+  <section class="card" id="controls" aria-label="Choose report">
+    <div class="controls">
+      <div class="field">
+        <label class="lbl" id="termLbl">Terminal</label>
+        <div class="seg" role="radiogroup" aria-labelledby="termLbl" id="terminals"></div>
+      </div>
+      <div class="field">
+        <label class="lbl" for="date">Date</label>
+        <input type="date" id="date">
+        <span class="quick">
+          <button class="link" data-offset="0">Today</button>
+          <button class="link" data-offset="1">Tomorrow</button>
+        </span>
+      </div>
+      <div class="go">
+        <button class="primary" id="generate">Generate report</button>
+        <label class="check"><input type="checkbox" id="showBrowser"> Show the browser while it runs</label>
+      </div>
+    </div>
+    <div id="cachedNote" class="note hidden"></div>
+  </section>
+
+  <section class="card hidden" id="progress" aria-live="polite">
+    <div class="row-between">
+      <h2 id="progTitle" style="margin:0">Generating report…</h2>
+      <span class="muted small" id="progTime"></span>
+    </div>
+    <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="progBarWrap"><div id="progBar"></div></div>
+    <div class="row-between">
+      <span id="progStep">Starting</span>
+      <span class="muted small">Usually takes 1–3 minutes. You can leave this page open and do other work.</span>
+    </div>
+    <details><summary>Show details</summary><pre class="log" id="progLog"></pre></details>
+  </section>
+
+  <section class="card error hidden" id="errorCard" role="alert">
+    <h2>The report could not be generated</h2>
+    <p id="errorText"></p>
+  </section>
+
+  <section class="card" id="reportCard">
+    <div class="empty" id="emptyState">Choose a terminal and a date, then press <b>Generate report</b>.</div>
+    <div id="report" class="hidden">
+      <div class="rep-head">
+        <div>
+          <h2 id="repTitle"></h2>
+          <div class="sub" id="repSub"></div>
+        </div>
+        <div class="actions" id="repActions"></div>
+      </div>
+      <div class="kpis">
+        <div class="kpi"><div class="k">Total departures</div><div class="v" id="kTotal"></div></div>
+        <div class="kpi"><div class="k">To China (mainland)</div><div class="v" id="kChina"></div></div>
+        <div class="kpi"><div class="k">Busiest 2 hours</div><div class="v" id="kPeak"></div></div>
+      </div>
+      <div class="table-wrap">
+        <table id="repTable">
+          <thead><tr>
+            <th scope="col">Time</th>
+            <th scope="col">Flights</th>
+            <th scope="col" class="num">To China</th>
+            <th scope="col">Countries <span style="text-transform:none;letter-spacing:0;font-weight:400">(hover a code for the country name)</span></th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="foot" id="repFoot"></div>
+    </div>
+  </section>
+
+  <section class="card" id="historyCard">
+    <div class="row-between"><h2>Saved reports</h2><span class="muted small">Click a report to open it</span></div>
+    <div class="table-wrap">
+      <table id="history">
+        <thead><tr><th>Date</th><th>Terminal</th><th class="num">Flights</th><th class="num">To China</th><th>Generated</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="empty small hidden" id="historyEmpty">No reports yet.</div>
+  </section>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const state = { config: null, terminal: "1", date: "", job: null, poll: null, shown: null };
+  const regionNames = (() => { try { return new Intl.DisplayNames(["en"], { type: "region" }); } catch (e) { return null; } })();
+  const countryName = (cc) => {
+    if (cc === "??") return "Unknown country";
+    try { return (regionNames && regionNames.of(cc)) || cc; } catch (e) { return cc; }
+  };
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+  };
+  const fmtDate = (iso, opts) => new Date(iso + "T00:00:00").toLocaleDateString("en-SG",
+    opts || { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const fmtStamp = (iso) => { if (!iso) return ""; const d = new Date(iso);
+    return d.toLocaleString("en-SG", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: false }); };
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  async function api(path, opts) {
+    const o = Object.assign({ headers: {} }, opts || {});
+    if (o.method === "POST") { o.headers["Content-Type"] = "application/json"; o.headers["X-Requested-With"] = "changi-app"; }
+    let r;
+    try { r = await fetch(path, o); } catch (e) { return { ok: false, status: 0, body: null }; }
+    let body = null; try { body = await r.json(); } catch (e) {}
+    return { ok: r.ok, status: r.status, body };
+  }
+
+  // ---------------------------------------------------------------- controls
+  function buildTerminals(list) {
+    const wrap = $("terminals");
+    wrap.innerHTML = list.map((t) =>
+      `<input type="radio" name="terminal" id="t${t}" value="${t}"><label for="t${t}">T${t}</label>`).join("");
+    wrap.addEventListener("change", (e) => { if (e.target.name === "terminal") selectTerminal(e.target.value); });
+  }
+  function selectTerminal(t) {
+    state.terminal = t;
+    const r = $("t" + t); if (r) r.checked = true;
+    store.set("changi.terminal", t);
+    const u = new URL(location.href); u.searchParams.set("terminal", t); history.replaceState(null, "", u);
+    loadSaved();
+  }
+  function addDays(iso, n) { const d = new Date(iso + "T00:00:00"); d.setDate(d.getDate() + n);
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+  function selectDate(iso) { state.date = iso; $("date").value = iso; loadSaved(); }
+
+  // ---------------------------------------------------------------- saved / report
+  async function loadSaved() {
+    if (!state.date) return;
+    const r = await api(`/api/report?terminal=${state.terminal}&date=${state.date}`);
+    const note = $("cachedNote");
+    if (r.ok && r.body) {
+      renderReport(r.body);
+      note.textContent = `Showing the saved report from ${fmtStamp(r.body.generated_at)}. Press "Generate report" to get the latest flight times from the Changi website.`;
+      note.classList.remove("hidden");
+    } else {
+      note.classList.add("hidden");
+      showEmpty(`No saved report for Terminal ${state.terminal} on ${fmtDate(state.date)}. Press <b>Generate report</b> to create one.`);
+    }
+    markHistory();
+  }
+  function showEmpty(html) { $("report").classList.add("hidden"); $("emptyState").innerHTML = html; $("emptyState").classList.remove("hidden"); state.shown = null; }
+
+  function renderReport(rep) {
+    state.shown = rep;
+    $("emptyState").classList.add("hidden");
+    $("report").classList.remove("hidden");
+    $("repTitle").innerHTML = `Terminal ${esc(rep.terminal)} · ${esc(fmtDate(rep.report_date))}` +
+      (String(rep.status || "").startsWith("COMPLETE") ? "" : `<span class="badge">Incomplete data</span>`);
+    $("repSub").textContent = `${rep.window_line} · generated ${fmtStamp(rep.generated_at)}`;
+
+    const f = rep.files || {};
+    const link = (key, label) => f[key] ? `<a href="/files/${encodeURIComponent(f[key])}" ${key === "pdf" ? 'target="_blank" rel="noopener"' : "download"}>${label}</a>` : "";
+    $("repActions").innerHTML = link("pdf", "Open PDF") + link("docx", "Word") + link("csv", "Flight list (CSV)") +
+      `<button type="button" id="printBtn">Print</button>`;
+    $("printBtn").addEventListener("click", () => window.print());
+
+    const rows = rep.rows || [];
+    const max = Math.max(1, ...rows.map((r) => r.flights));
+    const peak = rows.reduce((a, r) => (r.flights > (a ? a.flights : -1) ? r : a), null);
+    $("kTotal").textContent = rep.total_flights;
+    const pct = rep.total_flights ? Math.round((rep.total_china / rep.total_flights) * 100) : 0;
+    $("kChina").innerHTML = `${rep.total_china} <small>${pct}% of flights</small>`;
+    $("kPeak").innerHTML = peak && peak.flights ? `${esc(peak.label)} <small>${peak.flights} flights</small>` : "–";
+
+    const tbody = $("repTable").querySelector("tbody");
+    tbody.innerHTML = rows.map((r) => {
+      const chips = parseCountries(r.countries).map(([cc, n]) =>
+        `<span class="chip${cc === "CN" ? " cn" : ""}" title="${esc(countryName(cc))}: ${n} flight${n === 1 ? "" : "s"}"><b>${esc(cc)}</b>${n}</span>`).join("");
+      const w = Math.round((r.flights / max) * 100);
+      return `<tr class="${peak && r === peak && r.flights ? "peak" : ""}">
+        <td class="time">${esc(r.label)}${r.day ? `<span class="day">${esc(r.day)}</span>` : ""}</td>
+        <td><div class="barcell" title="${esc(r.label)}: ${r.flights} departures">${r.flights ? `<div class="bar" style="width:${w}%"></div>` : ""}<span class="barval">${r.flights}</span></div></td>
+        <td class="num">${r.china}</td>
+        <td><div class="chips">${chips || '<span class="muted">No departures</span>'}</div></td>
+      </tr>`;
+    }).join("") + `<tr class="total"><td>Total</td><td><span class="barval">${rep.total_flights}</span></td><td class="num">${rep.total_china}</td><td></td></tr>`;
+    $("repFoot").innerHTML = (rep.footnotes || []).map((t) => `<p>${esc(t)}</p>`).join("");
+  }
+  function parseCountries(text) {
+    if (!text || text === "–") return [];
+    return text.split(/\s{2,}/).map((p) => p.trim().split(/[\s ]+/)).filter((p) => p.length === 2).map(([c, n]) => [c, Number(n)]);
+  }
+
+  // ---------------------------------------------------------------- history
+  async function loadHistory() {
+    const r = await api("/api/reports");
+    const list = (r.ok && r.body) || [];
+    const tbody = $("history").querySelector("tbody");
+    $("historyEmpty").classList.toggle("hidden", list.length > 0);
+    $("history").classList.toggle("hidden", list.length === 0);
+    tbody.innerHTML = list.map((h) => `<tr data-t="${esc(h.terminal)}" data-d="${esc(h.date)}" tabindex="0">
+      <td>${esc(fmtDate(h.date, { weekday: "short", day: "numeric", month: "short", year: "numeric" }))}${h.partial ? ' <span class="badge">Incomplete</span>' : ""}</td>
+      <td>T${esc(h.terminal)}</td><td class="num">${h.total_flights ?? ""}</td><td class="num">${h.total_china ?? ""}</td>
+      <td class="muted">${esc(fmtStamp(h.generated_at))}</td></tr>`).join("");
+    markHistory();
+  }
+  function markHistory() {
+    document.querySelectorAll("#history tbody tr").forEach((tr) =>
+      tr.classList.toggle("active", tr.dataset.t === state.terminal && tr.dataset.d === state.date));
+  }
+  function openHistory(tr) { if (!tr) return; selectTerminal(tr.dataset.t); selectDate(tr.dataset.d); window.scrollTo({ top: 0, behavior: "smooth" }); }
+
+  // ---------------------------------------------------------------- running
+  async function generate() {
+    $("errorCard").classList.add("hidden");
+    const r = await api("/api/run", { method: "POST", body: JSON.stringify({
+      terminal: state.terminal, date: state.date, show_browser: $("showBrowser").checked }) });
+    if (r.status === 409 && r.body && r.body.job) { watch(r.body.job); return; }
+    if (!r.ok) { showError((r.body && r.body.error) || "The app did not respond."); return; }
+    watch(r.body.job);
+  }
+  function watch(jobId) {
+    state.job = jobId;
+    $("generate").disabled = true;
+    $("progress").classList.remove("hidden");
+    clearInterval(state.poll);
+    state.poll = setInterval(() => pollJob(jobId), 1000);
+    pollJob(jobId);
+  }
+  async function pollJob(jobId) {
+    const r = await api("/api/job/" + jobId);
+    if (!r.ok) { stopWatching(); showError("Lost track of the running report. Reload the page."); return; }
+    const j = r.body;
+    $("progTitle").textContent = `Generating Terminal ${j.terminal} · ${fmtDate(j.date, { weekday: "short", day: "numeric", month: "short" })}`;
+    $("progBar").style.width = j.percent + "%";
+    $("progBarWrap").setAttribute("aria-valuenow", j.percent);
+    $("progStep").textContent = j.step;
+    $("progTime").textContent = `${Math.floor(j.elapsed / 60)}:${String(j.elapsed % 60).padStart(2, "0")}`;
+    $("progLog").textContent = (j.log || []).join("\n");
+    if (j.state === "running") return;
+    stopWatching();
+    if (j.state === "done" && j.report) {
+      selectTerminal(j.terminal); state.date = j.date; $("date").value = j.date;
+      renderReport(j.report); $("cachedNote").classList.add("hidden");
+      loadHistory();
+    } else {
+      showError(j.error || "Unknown error.");
+    }
+  }
+  async function quitApp() {
+    if (!confirm("Quit Changi Departures? Saved reports are kept. Open the app again to use it.")) return;
+    let r = await api("/api/quit", { method: "POST", body: "{}" });
+    if (r.status === 409) {
+      if (!confirm(r.body.error)) return;
+      r = await api("/api/quit", { method: "POST", body: JSON.stringify({ force: true }) });
+    }
+    clearInterval(state.poll);
+    document.body.innerHTML = '<div class="closed"><h1>Changi Departures has been closed</h1>' +
+      '<p class="muted">You can close this tab. To use it again, open the Changi Departures app.</p></div>';
+    presence.tab = null; clearInterval(presence.timer);
+  }
+  function stopWatching() { clearInterval(state.poll); state.poll = null; state.job = null; $("generate").disabled = false; $("progress").classList.add("hidden"); }
+  function showError(msg) { $("errorText").textContent = msg; $("errorCard").classList.remove("hidden"); }
+
+  // ---------------------------------------------------------------- presence
+  // Tells the app this page is open, so the Mac app can quit by itself once it's closed.
+  const presence = { tab: null, timer: null, lost: false };
+  async function hello() {
+    const r = await api("/api/hello", { method: "POST", body: "{}" });
+    if (r.ok && r.body) { presence.tab = r.body.tab; presence.lost = false; }
+  }
+  async function heartbeat() {
+    if (!presence.tab) return hello();
+    const r = await api("/api/heartbeat", { method: "POST", body: JSON.stringify({ tab: presence.tab }) });
+    if (r.status === 404) return hello();
+    if (r.status === 0 && !presence.lost) {
+      presence.lost = true;
+      showError("Changi Departures isn't running any more. Open the app again, then reload this page.");
+    }
+  }
+  function startPresence() {
+    hello();
+    presence.timer = setInterval(heartbeat, 15000);
+    window.addEventListener("pagehide", () => {
+      if (presence.tab && navigator.sendBeacon) navigator.sendBeacon("/api/bye", JSON.stringify({ tab: presence.tab }));
+      presence.tab = null;
+    });
+    window.addEventListener("pageshow", (e) => { if (e.persisted) hello(); });  // restored from back/forward cache
+  }
+
+  // ---------------------------------------------------------------- init
+  async function init() {
+    const r = await api("/api/config");
+    if (!r.ok) { showError("Could not reach the app. Open Changi Departures again, then reload this page."); return; }
+    startPresence();
+    const cfg = state.config = r.body;
+    buildTerminals(cfg.terminals);
+    const fromUrl = new URL(location.href).searchParams.get("terminal");
+    const t = [fromUrl, store.get("changi.terminal"), cfg.default_terminal].find((x) => x && cfg.terminals.includes(x)) || "1";
+    state.date = cfg.today; $("date").value = cfg.today;
+    selectTerminal(t);
+    $("date").addEventListener("change", (e) => { if (e.target.value) selectDate(e.target.value); });
+    document.querySelectorAll(".quick button").forEach((b) =>
+      b.addEventListener("click", () => selectDate(addDays(cfg.today, Number(b.dataset.offset)))));
+    $("generate").addEventListener("click", generate);
+    $("openFolder").addEventListener("click", async () => {
+      const res = await api("/api/open-folder", { method: "POST", body: "{}" });
+      if (res.ok && res.body && navigator.platform && !/win/i.test(navigator.platform)) alert("Reports are saved in:\n" + res.body.path);
+    });
+    $("quitApp").addEventListener("click", quitApp);
+    $("history").addEventListener("click", (e) => openHistory(e.target.closest("tr[data-t]")));
+    $("history").addEventListener("keydown", (e) => { if (e.key === "Enter") openHistory(e.target.closest("tr[data-t]")); });
+    loadHistory();
+    if (cfg.busy && cfg.current_job) watch(cfg.current_job);
+  }
+  init();
+})();
+</script>
+</body>
+</html>
